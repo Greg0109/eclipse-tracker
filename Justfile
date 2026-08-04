@@ -73,7 +73,7 @@ setup-env:
 
 # Set up git-lfs tracking
 setup-git-lfs: check-git-lfs
-    @git lfs install
+    @git lfs install --local
     @git lfs track --lockable
 
 # Set up pre-commit hooks
@@ -385,6 +385,61 @@ docker-build revision="local-dev":
     echo "Image built: {{image_name}}:{{image_version}}"
     echo "Run the container to test with: docker run -p 8080:8080 {{image_name}}:{{image_version}}"
     echo "Or inspect it from bash: docker run -it -p 8080:8080 --entrypoint /bin/bash {{image_name}}:{{image_version}}"
+
+# CUSTOM PROJECT COMMANDS
+##############################################################################
+
+api_host := env('API_HOST', 'http://localhost:8080')
+
+# Install frontend npm dependencies
+frontend-install:
+    cd frontend && npm install
+
+# Run the frontend Vite dev server (pass extra args)
+frontend-dev *args="":
+    cd frontend && npm run dev -- {{args}}
+
+# Build the frontend for production (pass extra args)
+frontend-build *args="":
+    cd frontend && npm run build -- {{args}}
+
+# Lint the frontend (pass extra args)
+frontend-lint *args="":
+    cd frontend && npm run lint -- {{args}}
+
+# Preview the frontend production build (pass extra args)
+frontend-preview *args="":
+    cd frontend && npm run preview -- {{args}}
+
+# Run backend and frontend dev servers together (Ctrl-C stops both)
+dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    trap 'kill 0' EXIT
+    just serve &
+    just frontend-dev &
+    wait
+
+# List all bundled eclipses (curl helper)
+eclipses-list:
+    curl -s {{api_host}}/api/eclipses | python3 -m json.tool
+
+# Get ranked viewing-location recommendations for a point (curl helper)
+recommend lat lon range_km="150":
+    curl -s -X POST {{api_host}}/api/recommendations \
+        -H "Content-Type: application/json" \
+        -d '{"lat": {{lat}}, "lon": {{lon}}, "range_km": {{range_km}}}' \
+        | python3 -m json.tool
+
+# Get a day-of itinerary for a chosen candidate (curl helper)
+itinerary candidate_id candidate_name eclipse_id lat lon:
+    curl -s -G {{api_host}}/api/itinerary \
+        --data-urlencode "candidate_id={{candidate_id}}" \
+        --data-urlencode "candidate_name={{candidate_name}}" \
+        --data-urlencode "eclipse_id={{eclipse_id}}" \
+        --data-urlencode "lat={{lat}}" \
+        --data-urlencode "lon={{lon}}" \
+        | python3 -m json.tool
 
 # TEMPLATE UTILS
 ##############################################################################

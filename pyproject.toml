@@ -19,7 +19,9 @@ dependencies = [
     "fastapi[all]",
     "python-multipart",
     "uvicorn",
-    "dynaconf"
+    "dynaconf",
+    "httpx",
+    "structlog"
 ]
 
 [project.urls]
@@ -44,6 +46,7 @@ dev = [
     "pytest-randomly>=3.15",
     "pytest-xdist>=3.3",
     "ruff>=0.1.11",
+    "respx>=0.21",
 ]
 
 docs = [
@@ -111,10 +114,19 @@ ignore = [
     "TD003",     # missing-todo-author
     "FIX002",    # missing-fixme-author
     "COM812",    # missing-trailing-comma
+    "CPY001",    # missing-copyright-notice - repo has no copyright-header convention
 ]
 
 [tool.ruff.lint.isort]
 lines-after-imports = 2
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI resolves route parameter/return annotations at runtime (for Depends injection,
+# response_model, and OpenAPI schema generation), and pydantic resolves BaseModel field
+# annotations at class-build time - both would NameError if these imports only existed
+# under `if TYPE_CHECKING:`, so TC001/TC003 don't apply here.
+"src/eclipse_tracker/api/*.py" = ["TC001", "TC003"]
+"src/eclipse_tracker/models.py" = ["TC003"]
 
 [tool.ruff.format]
 quote-style = "double"

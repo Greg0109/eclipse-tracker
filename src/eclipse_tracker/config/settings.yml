@@ -10,6 +10,36 @@ default:
     log_format: console-simple
     log_handler: stdout
 
+  cors:
+    allow_origins:
+      - "http://localhost:5173"
+      - "http://127.0.0.1:5173"
+
+  external_apis:
+    elevation_url: "https://api.open-elevation.com/api/v1/lookup"
+    # Tried in order. overpass-api.de resets the TLS handshake for non-browser clients (confirmed at
+    # the raw socket level, not just httpx) - it fails almost instantly when blocked, so it's cheap
+    # to try first and costs nothing on networks where it isn't blocked. kumi.systems is the
+    # confirmed-working fallback but can be slow under load; request_timeout_s below is sized for it.
+    overpass_urls:
+      - "https://overpass-api.de/api/interpreter"
+      - "https://overpass.kumi.systems/api/interpreter"
+    nominatim_url: "https://nominatim.openstreetmap.org"
+    user_agent: "eclipse-tracker/0.1 (https://github.com/greg0109/eclipse_tracker)"
+    request_timeout_s: 100.0 # must cover the viewpoint query's "[timeout:55]" plus kumi.systems' observed latency
+    cache_ttl_s: 3600
+
+  scoring:
+    weights:
+      duration: 0.30
+      distance: 0.15
+      viewing_angle: 0.25
+      beauty: 0.20
+      accessibility: 0.10
+    candidate_search_radius_m: 3000
+    terrain_ray_samples: 8
+    terrain_ray_max_km: 5.0
+
 test: &test
   service.app_name: Eclipse Tracker test
   logging:

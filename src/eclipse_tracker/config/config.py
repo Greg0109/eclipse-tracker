@@ -12,8 +12,9 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
-import logging_setup
 from dynaconf import Dynaconf
+
+from eclipse_tracker import logging_setup
 
 
 logger = logging_setup.get_logger(__name__)
