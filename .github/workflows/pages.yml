@@ -23,7 +23,11 @@ jobs:
       run:
         working-directory: frontend
     steps:
+      # lfs: images/fonts are stored in Git LFS; without this the checkout yields pointer stubs
+      # and the site ships a text file where the favicon should be.
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - uses: actions/setup-node@v4
         with:

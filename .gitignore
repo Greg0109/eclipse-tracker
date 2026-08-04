@@ -72,7 +72,9 @@ instance/
 
 # Documentation
 docs/_build/
-public/
+# Root-scoped on purpose: this is a docs build output directory. Unanchored, it also swallowed
+# frontend/public/, which silently kept the favicon and the bundled eclipse dataset out of the repo.
+/public/
 
 # PyBuilder
 .pybuilder/

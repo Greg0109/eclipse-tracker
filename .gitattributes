@@ -34,7 +34,9 @@
 
 # Data files
 *.csv filter=lfs diff=lfs merge=lfs -text
-*.json filter=lfs diff=lfs merge=lfs -text
+# NOTE: *.json is deliberately NOT in LFS. package.json/package-lock.json/tsconfig*.json and the
+# bundled eclipse datasets are small text files that tooling must read directly - as LFS pointers
+# they break `npm ci` in CI and would ship the static dataset to the site as a pointer stub.
 *.parquet filter=lfs diff=lfs merge=lfs -text
 *.h5 filter=lfs diff=lfs merge=lfs -text
 *.hdf5 filter=lfs diff=lfs merge=lfs -text
