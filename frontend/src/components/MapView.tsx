@@ -1,10 +1,25 @@
 import { useEffect, useRef } from "react";
-import { LngLatBounds, Map as MapLibreMap, Marker, NavigationControl, Popup, type GeoJSONSource } from "maplibre-gl";
+import {
+  LngLatBounds,
+  Map as MapLibreMap,
+  Marker,
+  NavigationControl,
+  Popup,
+  setWorkerUrl,
+  type GeoJSONSource,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Candidate, Eclipse } from "../types/api";
 import { buildTotalityBand, centerlineToLineString, scoreColor } from "./mapGeo";
 
 const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/dark";
+
+// Only in the built app: the `maplibre-worker-assets` plugin in vite.config.ts emits the worker
+// there under this exact path. In dev, maplibre's own `import.meta.url` resolution already points
+// at node_modules and works as shipped.
+if (import.meta.env.PROD) {
+  setWorkerUrl(`${import.meta.env.BASE_URL}assets/maplibre-gl-worker.mjs`);
+}
 
 interface MapViewProps {
   eclipse: Eclipse | null;
