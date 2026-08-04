@@ -17,17 +17,23 @@ default:
 
   external_apis:
     elevation_url: "https://api.open-elevation.com/api/v1/lookup"
-    # Tried in order. overpass-api.de resets the TLS handshake for non-browser clients (confirmed at
-    # the raw socket level, not just httpx) - it fails almost instantly when blocked, so it's cheap
-    # to try first and costs nothing on networks where it isn't blocked. kumi.systems is the
-    # confirmed-working fallback but can be slow under load; request_timeout_s below is sized for it.
+    # Tried in order, fastest-when-healthy first. Measured from this machine: overpass-api.de is the
+    # quickest when it connects but its DNS/TLS is intermittently unreachable here (fails in <0.1s,
+    # so trying it first is nearly free); maps.mail.ru is the reliable middle ground; kumi.systems
+    # works but was repeatedly 45-80s per query, so it is the last resort.
     overpass_urls:
       - "https://overpass-api.de/api/interpreter"
+      - "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
       - "https://overpass.kumi.systems/api/interpreter"
     nominatim_url: "https://nominatim.openstreetmap.org"
     user_agent: "eclipse-tracker/0.1 (https://github.com/greg0109/eclipse_tracker)"
-    request_timeout_s: 100.0 # must cover the viewpoint query's "[timeout:55]" plus kumi.systems' observed latency
+    request_timeout_s: 70.0 # must cover the viewpoint query's "[timeout:55]" plus mirror latency
     cache_ttl_s: 3600
+    # Public Overpass instances allocate ~2 slots per client and answer the rest with 429 (or a
+    # 200 HTML error page). Going wider makes a request slower, not faster.
+    max_concurrent_overpass_requests: 2
+    # Point-radius lookups folded into a single batched "out count;" query.
+    overpass_batch_size: 15
 
   scoring:
     weights:

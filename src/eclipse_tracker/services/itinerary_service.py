@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import timedelta
 
 from eclipse_tracker.models import Eclipse, ItineraryResponse, ItineraryStop
 from eclipse_tracker.services import eclipse_service
 from eclipse_tracker.services.osm_service import FOOD_TAGS, SIGHTSEEING_TAGS, OsmService
 
+
+FOOD_AMENITIES = frozenset({"restaurant", "cafe", "bar"})
 
 ARRIVAL_BUFFER = timedelta(hours=2)
 MORNING_STOP_OFFSET = timedelta(hours=4)
@@ -50,10 +51,11 @@ async def build_itinerary(
     eclipse: Eclipse = eclipse_service.get_eclipse(eclipse_id)
     circumstances = eclipse_service.local_circumstances(eclipse, lat, lon)
 
-    sightseeing, food = await asyncio.gather(
-        osm.find_poi_near(lat, lon, POI_SEARCH_RADIUS_M, SIGHTSEEING_TAGS),
-        osm.find_poi_near(lat, lon, POI_SEARCH_RADIUS_M, FOOD_TAGS),
-    )
+    # One Overpass round-trip for both categories, split locally on the amenity tag: public
+    # instances rate-limit concurrent requests, so two queries here cost far more than one.
+    pois = await osm.find_poi_near(lat, lon, POI_SEARCH_RADIUS_M, SIGHTSEEING_TAGS + FOOD_TAGS, limit=40)
+    food = [poi for poi in pois if poi.get("tags", {}).get("amenity") in FOOD_AMENITIES]
+    sightseeing = [poi for poi in pois if poi.get("tags", {}).get("amenity") not in FOOD_AMENITIES]
 
     eclipse_time = circumstances.time_utc
     stops: list[ItineraryStop] = [

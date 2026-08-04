@@ -15,6 +15,11 @@ def _viewpoint_node(node_id: int, lat: float, lon: float, name: str) -> dict:
     return {"type": "node", "id": node_id, "lat": lat, "lon": lon, "tags": {"name": name, "tourism": "viewpoint"}}
 
 
+def _count_elements(query: str, total: int) -> dict:
+    """One `{"type": "count"}` element per `out count;` statement, as Overpass returns them."""
+    return {"elements": [{"type": "count", "id": 0, "tags": {"total": str(total)}}] * query.count("out count;")}
+
+
 def _overpass_side_effect(request):
     body = parse_qs(request.content.decode())
     query = body.get("data", [""])[0]
@@ -22,9 +27,9 @@ def _overpass_side_effect(request):
     if "around" not in query:
         return Response(200, json={"elements": [_viewpoint_node(1, CANDIDATE_LAT, CANDIDATE_LON, "Mirador del Eclipse")]})
     if "building" in query:
-        return Response(200, json={"elements": [{"type": "way", "id": 10}]})
+        return Response(200, json=_count_elements(query, 1))
     if "access" in query:
-        return Response(200, json={"elements": [{"type": "way", "id": 20}]})
+        return Response(200, json=_count_elements(query, 1))
     if "amenity" in query:
         return Response(
             200,

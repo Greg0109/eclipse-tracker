@@ -18,6 +18,8 @@ def get_osm_service() -> OsmService:
         user_agent=cfg.user_agent,
         timeout_s=cfg.request_timeout_s,
         cache_ttl_s=cfg.cache_ttl_s,
+        max_concurrent_requests=cfg.max_concurrent_overpass_requests,
+        batch_size=cfg.overpass_batch_size,
     )
 
 

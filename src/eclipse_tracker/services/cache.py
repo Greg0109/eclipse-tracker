@@ -18,13 +18,23 @@ class TTLCache[T]:
         self._ttl = ttl_seconds
         self._store: dict[str, tuple[float, T]] = {}
 
+    def get(self, key: str) -> T | None:
+        """Return the live cached value for `key`, or None if absent or expired."""
+        cached = self._store.get(key)
+        if cached is not None and cached[0] > time.monotonic():
+            return cached[1]
+        return None
+
+    def set(self, key: str, value: T) -> None:
+        """Cache `value` under `key` for this cache's TTL."""
+        self._store[key] = (time.monotonic() + self._ttl, value)
+
     async def get_or_set(self, key: str, factory: Callable[[], Awaitable[T]]) -> T:
         """Return the cached value for `key`, or compute and cache it via `factory`."""
-        now = time.monotonic()
-        cached = self._store.get(key)
-        if cached is not None and cached[0] > now:
-            return cached[1]
+        cached = self.get(key)
+        if cached is not None:
+            return cached
 
         value = await factory()
-        self._store[key] = (now + self._ttl, value)
+        self.set(key, value)
         return value

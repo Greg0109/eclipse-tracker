@@ -17,17 +17,21 @@ def _poi_node(node_id: int, lat: float, lon: float, name: str, tag_key: str, tag
 
 
 def _overpass_side_effect(request):
+    # Food and sightseeing are fetched in a single unioned POI query and split client-side on the
+    # amenity tag, so this one response has to carry both categories.
     body = parse_qs(request.content.decode())
     query = body.get("data", [""])[0]
+    assert "amenity" in query, query
+    assert "tourism" in query, query
 
-    if "amenity" in query:
-        return Response(
-            200,
-            json={"elements": [_poi_node(1, CANDIDATE_LAT, CANDIDATE_LON, "Restaurante Sol", "amenity", "restaurant")]},
-        )
     return Response(
         200,
-        json={"elements": [_poi_node(2, CANDIDATE_LAT, CANDIDATE_LON, "Museo del Eclipse", "tourism", "museum")]},
+        json={
+            "elements": [
+                _poi_node(2, CANDIDATE_LAT, CANDIDATE_LON, "Museo del Eclipse", "tourism", "museum"),
+                _poi_node(1, CANDIDATE_LAT, CANDIDATE_LON, "Restaurante Sol", "amenity", "restaurant"),
+            ]
+        },
     )
 
 
