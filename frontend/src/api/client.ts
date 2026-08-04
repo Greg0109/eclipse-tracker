@@ -17,8 +17,17 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function getNextEclipse(): Promise<Eclipse> {
-  return requestJson<Eclipse>("/api/eclipses/next");
+export async function getNextEclipse(): Promise<Eclipse> {
+  try {
+    return await requestJson<Eclipse>("/api/eclipses/next");
+  } catch {
+    // The eclipse dataset is static and bundled, so the map and totality path can still be drawn
+    // with no backend at all - which is exactly the case on the GitHub Pages build. Only the
+    // recommendation and itinerary endpoints genuinely require the API to be running.
+    const response = await fetch(`${import.meta.env.BASE_URL}data/next-eclipse.json`);
+    if (!response.ok) throw new Error(`Could not load the bundled eclipse dataset: ${response.status}`);
+    return response.json() as Promise<Eclipse>;
+  }
 }
 
 export function listEclipses(): Promise<Eclipse[]> {
