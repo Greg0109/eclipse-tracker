@@ -31,7 +31,7 @@ default:
     cache_ttl_s: 3600
     # Public Overpass instances allocate ~2 slots per client and answer the rest with 429 (or a
     # 200 HTML error page). Going wider makes a request slower, not faster.
-    max_concurrent_overpass_requests: 2
+    max_concurrent_overpass_requests: 3
     # Point-radius lookups folded into a single batched "out count;" query.
     overpass_batch_size: 15
     # How long a mirror gets to answer before the next one is raced alongside it.

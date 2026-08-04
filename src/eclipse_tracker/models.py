@@ -63,6 +63,10 @@ class Candidate(BaseModel):
     distance_km: float
     totality_duration_s: float
     eclipse_time_utc: datetime
+    # Same instant as `eclipse_time_utc`, expressed in the candidate's own civil timezone, plus that
+    # zone's IANA name - what a viewer standing there will actually read off their phone.
+    eclipse_time_local: datetime
+    timezone: str
     sun_azimuth_deg: float
     sun_altitude_deg: float
     horizon_clearance_deg: float
@@ -87,7 +91,7 @@ class RecommendationRequest(BaseModel):
 
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
-    range_km: float = Field(gt=0, le=2000, default=150)
+    range_km: float = Field(gt=0, le=2000, default=100)
     eclipse_id: str | None = None
     limit: int = Field(gt=0, le=100, default=20)
     weights: ScoringWeights | None = None

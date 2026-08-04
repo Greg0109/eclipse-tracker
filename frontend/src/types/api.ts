@@ -46,6 +46,10 @@ export interface Candidate {
   distance_km: number;
   totality_duration_s: number;
   eclipse_time_utc: string;
+  /** Same instant as `eclipse_time_utc`, already offset into `timezone`. */
+  eclipse_time_local: string;
+  /** IANA zone at the candidate's own location, e.g. `Europe/Madrid`. */
+  timezone: string;
   sun_azimuth_deg: number;
   sun_altitude_deg: number;
   horizon_clearance_deg: number;

@@ -129,7 +129,7 @@ just recommend 41.9 -4.2 150
 {
   "eclipse": { "id": "2026-08-12", "...": "..." },
   "origin": [41.9, -4.2],
-  "range_km": 150,
+  "range_km": 100,
   "candidates": [
     {
       "id": "way/123456",
@@ -202,7 +202,7 @@ Project-specific additions:
 | `just frontend-preview` | Preview the production build |
 | `just dev` | Backend (`just serve`) + frontend dev server together |
 | `just eclipses-list` | `GET /api/eclipses`, pretty-printed |
-| `just recommend <lat> <lon> [range_km=150]` | `POST /api/recommendations`, pretty-printed |
+| `just recommend <lat> <lon> [range_km=100]` | `POST /api/recommendations`, pretty-printed |
 | `just itinerary <candidate_id> <candidate_name> <eclipse_id> <lat> <lon>` | `GET /api/itinerary`, pretty-printed |
 
 All three curl helpers target `http://localhost:8080` by default; override with `API_HOST=<url>`.

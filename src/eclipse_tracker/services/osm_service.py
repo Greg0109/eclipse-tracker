@@ -25,8 +25,12 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from eclipse_tracker.logging_setup import get_logger
 from eclipse_tracker.services.cache import TTLCache
 from eclipse_tracker.services.http_retry import with_retries
+
+
+logger = get_logger(__name__)
 
 
 if TYPE_CHECKING:
@@ -192,15 +196,33 @@ class OsmService:
     async def find_viewpoints_in_bbox(
         self, min_lat: float, min_lon: float, max_lat: float, max_lon: float, limit: int = 60
     ) -> list[dict]:
-        """Real named viewpoint/peak/beach/park/attraction nodes inside a bounding box."""
+        """Find real named viewpoint/peak/beach/park/attraction nodes inside a bounding box.
+
+        One request *per tag* rather than one unioned request for all of them. Overpass evaluates a
+        union in full before applying `out body N`, so over a range_km-wide bbox the union routinely
+        blew its own `[timeout:55]` budget (`node["natural"="peak"]` alone matches >10k nodes). The
+        per-tag queries each finish in a few seconds, are cached separately, and one failing tag
+        costs its own results instead of the whole search.
+        """
         bbox = f"{min_lat},{min_lon},{max_lat},{max_lon}"
-        body = "".join(f"{tag}({bbox});" for tag in VIEWPOINT_QUERY_TAGS)
-        # 6 unioned tag filters over a range_km-wide bbox (up to 800km) routinely exceeds Overpass's
-        # default query budget - give it more room than the small point-radius queries below need.
-        query = f"[out:json][timeout:55];({body});out body {limit};"
-        cache_key = f"viewpoints:{bbox}:{limit}"
-        elements = await self._run_query(query, cache_key)
-        return [e for e in elements if e.get("tags", {}).get("name")]
+        per_tag_limit = max(1, limit // len(VIEWPOINT_QUERY_TAGS) * 2)
+
+        async def for_tag(tag: str) -> list[dict]:
+            query = f"[out:json][timeout:50];({tag}({bbox}););out body {per_tag_limit};"
+            return await self._run_query(query, f"viewpoints:{bbox}:{tag}:{per_tag_limit}")
+
+        results = await asyncio.gather(*(for_tag(tag) for tag in VIEWPOINT_QUERY_TAGS), return_exceptions=True)
+
+        by_id: dict[tuple[str, int], dict] = {}
+        for tag, result in zip(VIEWPOINT_QUERY_TAGS, results, strict=True):
+            if isinstance(result, BaseException):
+                logger.warning("overpass_viewpoint_tag_failed", tag=tag, error=str(result))
+                continue
+            for element in result:
+                if element.get("tags", {}).get("name"):
+                    by_id[(element["type"], element["id"])] = element
+
+        return list(by_id.values())[:limit]
 
     async def building_counts_near(self, points: Sequence[tuple[float, float]], radius_m: float = 150) -> list[int]:
         """Count OSM building footprints within `radius_m` of each point - a dense-urban-area proxy."""

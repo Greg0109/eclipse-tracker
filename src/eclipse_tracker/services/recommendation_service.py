@@ -10,7 +10,7 @@ import httpx
 
 from eclipse_tracker.logging_setup import get_logger
 from eclipse_tracker.models import Candidate, RecommendationResponse, ScoringWeights
-from eclipse_tracker.services import eclipse_service
+from eclipse_tracker.services import eclipse_service, timezone_service
 from eclipse_tracker.services.geo import bounding_box, haversine_km
 from eclipse_tracker.services.osm_service import OverpassQueryError
 from eclipse_tracker.services.poi_classify import classify
@@ -131,6 +131,8 @@ def _to_candidate(
         distance_km=round(prospect.distance_km, 2),
         totality_duration_s=round(circumstances.totality_duration_s, 1),
         eclipse_time_utc=circumstances.time_utc,
+        eclipse_time_local=timezone_service.to_local(circumstances.time_utc, prospect.lat, prospect.lon),
+        timezone=timezone_service.timezone_name(prospect.lat, prospect.lon),
         sun_azimuth_deg=round(circumstances.sun_azimuth_deg, 1),
         sun_altitude_deg=round(circumstances.sun_altitude_deg, 1),
         horizon_clearance_deg=round(clearance, 1),

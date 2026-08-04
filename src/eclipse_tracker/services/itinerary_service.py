@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from eclipse_tracker.models import Eclipse, ItineraryResponse, ItineraryStop
-from eclipse_tracker.services import eclipse_service
+from eclipse_tracker.services import eclipse_service, timezone_service
 from eclipse_tracker.services.osm_service import FOOD_TAGS, SIGHTSEEING_TAGS, OsmService
 
 
@@ -81,7 +81,7 @@ async def build_itinerary(
             name=candidate_name,
             lat=lat,
             lon=lon,
-            start_local_hint=arrival_time.strftime("%H:%M UTC"),
+            start_local_hint=timezone_service.format_local(arrival_time, lat, lon),
             note="Arrive early to secure parking/space - popular viewing spots fill up before totality.",
         ),
     )
@@ -94,7 +94,7 @@ async def build_itinerary(
             _stop_from_element(
                 morning_sightseeing,
                 "sightseeing",
-                sightseeing_time.strftime("%H:%M UTC"),
+                timezone_service.format_local(sightseeing_time, lat, lon),
                 "While you wait: nearby sightseeing before heading to your viewing spot.",
             ),
         )
@@ -107,7 +107,7 @@ async def build_itinerary(
             _stop_from_element(
                 lunch,
                 "food",
-                lunch_time.strftime("%H:%M UTC"),
+                timezone_service.format_local(lunch_time, lat, lon),
                 "Grab a meal before settling in for the eclipse.",
             ),
         )
@@ -119,7 +119,7 @@ async def build_itinerary(
             name=candidate_name,
             lat=lat,
             lon=lon,
-            start_local_hint=eclipse_time.strftime("%H:%M UTC"),
+            start_local_hint=timezone_service.format_local(eclipse_time, lat, lon),
             note=(
                 f"Totality: ~{circumstances.totality_duration_s:.0f}s, "
                 f"sun altitude {circumstances.sun_altitude_deg:.0f} deg."
@@ -136,7 +136,7 @@ async def build_itinerary(
             _stop_from_element(
                 dinner,
                 "food",
-                dinner_time.strftime("%H:%M UTC"),
+                timezone_service.format_local(dinner_time, lat, lon),
                 "Celebrate afterwards with a bite nearby.",
             ),
         )

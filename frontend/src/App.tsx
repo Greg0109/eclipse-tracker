@@ -8,7 +8,7 @@ import type { Candidate, Eclipse } from "./types/api";
 
 const DEFAULT_LAT = 41.9;
 const DEFAULT_LON = -4.2;
-const DEFAULT_RANGE_KM = 150;
+const DEFAULT_RANGE_KM = 100;
 
 function App() {
   const [eclipse, setEclipse] = useState<Eclipse | null>(null);

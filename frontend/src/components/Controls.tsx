@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { searchAddress } from "../api/client";
 import { useGeolocation } from "../hooks/useGeolocation";
 import type { NominatimResult } from "../types/api";
@@ -11,14 +11,11 @@ interface ControlsProps {
   onLocationChange: (lat: number, lon: number) => void;
 }
 
-const SEARCH_DEBOUNCE_MS = 1000;
-const MIN_QUERY_LENGTH = 3;
-
 export function Controls({ lat, lon, rangeKm, onRangeChange, onLocationChange }: ControlsProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<NominatimResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const debounceRef = useRef<number | undefined>(undefined);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const {
     loading: locating,
@@ -26,20 +23,21 @@ export function Controls({ lat, lon, rangeKm, onRangeChange, onLocationChange }:
     locate,
   } = useGeolocation((foundLat, foundLon) => onLocationChange(foundLat, foundLon));
 
-  useEffect(() => {
-    if (query.trim().length < MIN_QUERY_LENGTH) {
-      setResults([]);
-      return undefined;
-    }
-    window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(() => {
-      setSearching(true);
-      searchAddress(query)
-        .then(setResults)
-        .finally(() => setSearching(false));
-    }, SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(debounceRef.current);
-  }, [query]);
+  // Explicitly triggered, never on keystroke: Nominatim's usage policy caps clients at ~1 req/s,
+  // and a search-as-you-type box burns that budget on prefixes nobody asked to look up.
+  const runSearch = useCallback(() => {
+    const trimmed = query.trim();
+    if (!trimmed || searching) return;
+    setSearching(true);
+    setSearchError(null);
+    searchAddress(trimmed)
+      .then((found) => {
+        setResults(found);
+        if (found.length === 0) setSearchError(`No places found for "${trimmed}".`);
+      })
+      .catch((err: Error) => setSearchError(err.message))
+      .finally(() => setSearching(false));
+  }, [query, searching]);
 
   return (
     <div className="glass-panel w-80 space-y-4 rounded-2xl p-4">
@@ -52,15 +50,28 @@ export function Controls({ lat, lon, rangeKm, onRangeChange, onLocationChange }:
         <label className="text-xs text-astro-muted" htmlFor="address-search">
           Search a place
         </label>
-        <input
-          id="address-search"
-          className="w-full rounded-lg border border-astro-border bg-white/5 px-3 py-2 text-sm text-astro-text placeholder:text-astro-muted focus:ring-1 focus:ring-astro-accent focus:outline-none"
-          type="text"
-          placeholder="City, address..."
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        {searching && <p className="text-xs text-astro-muted">Searching...</p>}
+        <div className="flex gap-2">
+          <input
+            id="address-search"
+            className="min-w-0 flex-1 rounded-lg border border-astro-border bg-white/5 px-3 py-2 text-sm text-astro-text placeholder:text-astro-muted focus:ring-1 focus:ring-astro-accent focus:outline-none"
+            type="text"
+            placeholder="City, address..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") runSearch();
+            }}
+          />
+          <button
+            type="button"
+            onClick={runSearch}
+            disabled={searching || query.trim().length === 0}
+            className="shrink-0 rounded-lg border border-astro-accent/50 bg-astro-accent/20 px-3 py-2 text-sm text-astro-text transition-colors hover:bg-astro-accent/30 disabled:opacity-40"
+          >
+            {searching ? "..." : "Search"}
+          </button>
+        </div>
+        {searchError && <p className="text-xs text-amber-300">{searchError}</p>}
         {results.length > 0 && (
           <ul className="divide-y divide-white/5 overflow-hidden rounded-lg border border-astro-border">
             {results.map((result) => (
@@ -72,6 +83,7 @@ export function Controls({ lat, lon, rangeKm, onRangeChange, onLocationChange }:
                     onLocationChange(Number(result.lat), Number(result.lon));
                     setQuery(result.display_name);
                     setResults([]);
+                    setSearchError(null);
                   }}
                 >
                   {result.display_name}

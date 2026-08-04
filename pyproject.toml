@@ -21,7 +21,8 @@ dependencies = [
     "uvicorn",
     "dynaconf",
     "httpx",
-    "structlog"
+    "structlog",
+    "timezonefinder>=8.2.5",
 ]
 
 [project.urls]

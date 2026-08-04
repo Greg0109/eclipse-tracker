@@ -425,7 +425,7 @@ eclipses-list:
     curl -s {{api_host}}/api/eclipses | python3 -m json.tool
 
 # Get ranked viewing-location recommendations for a point (curl helper)
-recommend lat lon range_km="150":
+recommend lat lon range_km="100":
     curl -s -X POST {{api_host}}/api/recommendations \
         -H "Content-Type: application/json" \
         -d '{"lat": {{lat}}, "lon": {{lon}}, "range_km": {{range_km}}}' \

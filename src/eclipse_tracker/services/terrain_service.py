@@ -12,6 +12,7 @@ precise line-of-sight guarantee.
 
 from __future__ import annotations
 
+import asyncio
 import math
 
 import httpx
@@ -33,13 +34,21 @@ class TerrainService:
         *,
         ray_samples: int = 8,
         ray_max_km: float = 5.0,
+        max_concurrent_requests: int = 3,
     ) -> None:
-        """Configure the Open-Elevation endpoint, request timeout, cache TTL, and ray-cast resolution."""
+        """Configure the Open-Elevation endpoint, request timeout, cache TTL, and ray-cast resolution.
+
+        `max_concurrent_requests` matters: firing one ray per candidate in parallel makes the public
+        Open-Elevation instance answer several of them with 429, which silently drops those
+        candidates from the results. A small in-flight cap trades a little latency for complete
+        results.
+        """
         self._elevation_url = elevation_url
         self._user_agent = user_agent
         self._timeout_s = timeout_s
         self._ray_samples = ray_samples
         self._ray_max_km = ray_max_km
+        self._semaphore = asyncio.Semaphore(max_concurrent_requests)
         self._cache: TTLCache[float] = TTLCache(cache_ttl_s)
 
     async def horizon_clearance_deg(
@@ -61,7 +70,10 @@ class TerrainService:
         ]
 
         async def fetch() -> list[dict]:
-            async with httpx.AsyncClient(timeout=self._timeout_s, headers={"User-Agent": self._user_agent}) as client:
+            async with (
+                self._semaphore,
+                httpx.AsyncClient(timeout=self._timeout_s, headers={"User-Agent": self._user_agent}) as client,
+            ):
                 locations = "|".join(f"{p_lat},{p_lon}" for p_lat, p_lon in points)
                 response = await client.get(self._elevation_url, params={"locations": locations})
                 response.raise_for_status()

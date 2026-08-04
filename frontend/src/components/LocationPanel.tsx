@@ -21,8 +21,14 @@ export function LocationPanel({ candidate }: LocationPanelProps) {
     );
   }
 
-  const eclipseTime = new Date(candidate.eclipse_time_utc);
-  const timeLabel = eclipseTime.toISOString().slice(11, 16);
+  // Render in the *candidate's* timezone, not the viewer's: someone planning from London still
+  // needs the Spanish wall-clock time of a Spanish viewing spot.
+  const timeLabel = new Date(candidate.eclipse_time_utc).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: candidate.timezone,
+    timeZoneName: "short",
+  });
 
   return (
     <div className="glass-panel w-80 space-y-3 rounded-2xl p-4">
@@ -36,7 +42,7 @@ export function LocationPanel({ candidate }: LocationPanelProps) {
         <dd className="text-right font-medium">{candidate.score.composite.toFixed(0)} / 100</dd>
         <dt className="text-astro-muted">Totality</dt>
         <dd className="text-right">{candidate.totality_duration_s.toFixed(0)}s</dd>
-        <dt className="text-astro-muted">Eclipse time (UTC)</dt>
+        <dt className="text-astro-muted">Eclipse time (local)</dt>
         <dd className="text-right">{timeLabel}</dd>
         <dt className="text-astro-muted">Sun az / alt</dt>
         <dd className="text-right">
