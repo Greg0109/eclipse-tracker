@@ -26,12 +26,13 @@ if TYPE_CHECKING:
     from eclipse_tracker.services.terrain_service import TerrainService
 
 
-# Each surviving candidate costs one Open-Elevation request, and contributes one statement to each
-# of the two batched Overpass queries. A wide bbox can return 60 in-path viewpoints; enriching all
-# of them makes the request take minutes against public API rate limits. Rank cheaply first (the
-# eclipse maths is pure and local), then only pay for the ones that can plausibly make the top of
-# the list.
-MAX_ENRICHED_CANDIDATES = 15
+# Each surviving candidate costs one Open-Elevation request and contributes one statement to each of
+# the two batched Overpass queries. Rank cheaply first (the eclipse maths is pure and local), then
+# only pay to enrich this many - the point of the cap is to bound the *per-candidate* API calls that
+# once made this endpoint take minutes, not to keep the map sparse. The Overpass side is batched into
+# one request per signal regardless of the count, and a rate-limited elevation lookup now degrades
+# the terrain score instead of deleting the candidate, so this can be generous.
+MAX_ENRICHED_CANDIDATES = 40
 
 OVERPASS_UNAVAILABLE_WARNING = (
     "Could not reach the OpenStreetMap Overpass API, so no viewing spots could be searched. "

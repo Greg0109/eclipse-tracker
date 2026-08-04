@@ -37,7 +37,7 @@ default:
     # 200 HTML error page). Going wider makes a request slower, not faster.
     max_concurrent_overpass_requests: 3
     # Point-radius lookups folded into a single batched "out count;" query.
-    overpass_batch_size: 15
+    overpass_batch_size: 40 # keep all candidates in a single batched query
     # How long a mirror gets to answer before the next one is raced alongside it.
     overpass_hedge_delay_s: 10.0
 

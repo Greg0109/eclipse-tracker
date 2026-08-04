@@ -60,7 +60,7 @@ function App() {
           lat: searchLat,
           lon: searchLon,
           range_km: rangeKm,
-          limit: 20,
+          limit: 40,
         });
         setCandidates(response.candidates);
         setWarnings(response.warnings ?? []);
