@@ -1,0 +1,49 @@
+services:
+  eclipse_tracker-dev:
+    image: astral/uv:python3.12-trixie
+    container_name: "eclipse_tracker-dev-shell"
+    volumes:
+      - $ROOTDIR:/home/root/repo
+      - $HOME/.gitconfig:/home/root/.gitconfig:ro
+      - $HOME/.ssh:/home/root/.ssh:ro
+      - uv-cache-dev:/home/root/.cache/uv
+      - uv-venvs-dev:/home/root/.local/share/uv
+    environment:
+      # Basic OS environment variables
+      TZ: Europe/Madrid
+      LC_ALL: "C.UTF-8"
+      LANG: "C.UTF-8"
+      TERM: xterm-256color
+      # Project-specific variables
+      ROOTDIR: $ROOTDIR
+      UV_PROJECT_ENVIRONMENT: /home/root/.local/share/uv/docker-venv
+      SAFETY_API_KEY: $SAFETY_API_KEY
+    entrypoint: >
+      bash -c "
+        echo 'Setting up docker-specific virtual environment with UV...' &&
+        echo 'Configuring permissions for root user...' &&
+        chown -R root:root /home/root/.cache &&
+        chown -R root:root /home/root/.local &&
+        cd /home/root/repo &&
+        echo 'Configuring UV for docker environment...' &&
+        mkdir -p /home/root/.local/share/uv &&
+        if [[ ! -f 'uv.lock' ]]; then
+          echo 'Creating uv.lock file...' &&
+          uv lock
+        fi &&
+        echo 'Creating/syncing docker-specific virtual environment...' &&
+        uv sync --frozen &&
+        echo 'UV docker environment ready!' &&
+        echo 'Virtual environment located at: /home/root/.local/share/uv/docker-venv' &&
+        echo 'REMEMBER: to use uv run <command> for executing commands in the virtual environment' &&
+        exec \"\$$@\"
+      " --
+    working_dir: /home/root/repo
+    tty: true
+    stdin_open: true
+
+volumes:
+  uv-cache-dev:
+    name: "eclipse_tracker-dev-shell-uv-cache"
+  uv-venvs-dev:
+    name: "eclipse_tracker-dev-shell-uv-venvs"

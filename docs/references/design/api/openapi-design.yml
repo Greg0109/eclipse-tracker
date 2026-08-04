@@ -1,0 +1,80 @@
+openapi: 3.0.3
+info:
+  title: Eclipse Tracker
+  description: |
+    Gives you the best location (or array of locations) for vieweing the eclipse 
+  version: 1.0.0
+  license:
+    name: MIT License
+    url: https://opensource.org/licenses/MIT
+  contact:
+    name: greg0109
+    email: greg.rabago@gmail.com
+tags:
+  - name: Maintenance
+    description: >
+      Perform system maintenance, updates,
+      and technical operations management.
+security:
+  - ApiKeyAuth: []
+servers:
+  - url: http://localhost:8080/api/1.0
+    description: Local Development Server
+paths:
+  /maintenance/v1/alive:
+    get:
+      summary: Health-check Service Availability
+      description: Confirms the API's current operational status and responsiveness.
+      operationId: maintenance_maintenance_v1_alive_get
+      tags:
+        - Maintenance
+      responses:
+        '204':
+          description: "Service is operational. Response is empty"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  responses:
+    Unauthorized:
+      description: >
+        Indicates failure due to missing
+        or invalid API key
+        in the request header.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UnauthorizedError'
+    InternalServerError:
+      description: >
+        An internal server error occured. Please, contact
+        with your administrator for help.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InternalError'
+  schemas:
+    UnauthorizedError:
+      properties:
+        error:
+          type: string
+          default: unauthorized
+        title:
+          type: string
+          default: Unauthorized
+        reason:
+          type: string
+          default: You don't have permission to access this resource
+    InternalError:
+      type: object
+      properties:
+        error:
+          type: string
+          default: internal_error
+        title:
+          type: string
+          default: Internal server error
+        reason:
+          type: string
+          default: An internal server error occured. Please, contact with your administrator for help.

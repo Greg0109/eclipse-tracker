@@ -1,0 +1,15 @@
+# Changes here will be overwritten by Copier
+_commit: v0.1.1
+_src_path: ../copier-python-http
+activate_security_tools: true
+author_email: greg.rabago@gmail.com
+author_fullname: greg0109
+docker_image: astral/uv:python3.14-trixie
+envvar_prefix: ECLIPSE_TRACKER
+project_description: Gives you the best location (or array of locations) for vieweing
+    the eclipse
+project_github_url: greg0109/eclipse_tracker
+project_name: Eclipse Tracker
+project_slug: eclipse_tracker
+python_version: '3.14'
+version: 0.1.0

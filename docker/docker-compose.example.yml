@@ -1,0 +1,9 @@
+services:
+  fastapi:
+    image: raushanraja/fastapi-hello-world:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - RELOAD=False

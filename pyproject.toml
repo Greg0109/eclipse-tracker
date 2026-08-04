@@ -1,0 +1,126 @@
+[project]
+name = "eclipse_tracker"
+version = "0.1.0"
+description = "Gives you the best location (or array of locations) for vieweing the eclipse"
+authors = [{name = "greg0109", email = "greg.rabago@gmail.com"}]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+keywords = []
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+]
+
+dependencies = [
+    "fastapi[all]",
+    "python-multipart",
+    "uvicorn",
+    "dynaconf"
+]
+
+[project.urls]
+Homepage = "https://github.com/greg0109/eclipse_tracker"
+Documentation = "https://greg0109/eclipse_tracker"
+Changelog = "https://github.com/greg0109/eclipse_tracker/blob/main/CHANGELOG.md"
+Issues = "https://github.com/greg0109/eclipse_tracker/issues"
+
+[build-system]
+requires = ["uv_build>=0.8.13,<0.9.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "bandit>=1.7.0",
+    "coverage[toml]>=7.4.0",
+    "pre-commit>=4.2.0",
+    "pytest>=7.4",
+    "pytest-bdd>=7.0",
+    "pytest-cov>=4.1",
+    "pytest-html>=4.0",
+    "pytest-randomly>=3.15",
+    "pytest-xdist>=3.3",
+    "ruff>=0.1.11",
+]
+
+docs = [
+    "griffe-typingdoc>=0.2.4",
+    "markdown-callouts>=0.3",
+    "markdown-exec>=1.7",
+    "mkdocs>=1.5",
+    "mkdocs-autorefs>=0.5.0",
+    "mkdocs-awesome-pages-plugin>=2.9.2",
+    "mkdocs-build-plantuml-plugin>=1.9.0",
+    "mkdocs-coverage>=1.0",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-git-committers-plugin-2>=1.2",
+    "mkdocs-include-markdown-plugin>=6.0",
+    "mkdocs-literate-nav>=0.6",
+    "mkdocs-material>=9.4",
+    "mkdocs-mermaid2-plugin>=1.2.1",
+    "mkdocs-minify-plugin>=0.7",
+    "mkdocs-render-swagger-plugin>=0.1.1",
+    "mkdocs-site-urls>=0.2.0",
+    "mkdocstrings[python]>=0.23",
+    "mkdocstrings-python>=1.8.0",
+    "typer>=0.9.0",
+]
+
+[tool.uv]
+default-groups = ["dev", "docs"]
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+
+[tool.commitizen]  # https://commitizen-tools.github.io/commitizen/config/
+bump_message = "bump(release): v$current_version → v$new_version"
+tag_format = "v$version"
+update_changelog_on_bump = false
+version_provider = "pep621"
+version_files = [
+    "pyproject.toml:^version"
+]
+annotated_tag = true
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::pytest.PytestDeprecationWarning:pytest_bdd.*",
+    "ignore::DeprecationWarning:structlog.threadlocal*:0"
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = [ "ALL" ]
+task-tags=[
+    "TODO",
+    "FIXME",
+    "WARN"
+]
+ignore = [
+    "FBT001",    # boolean-type-hint-positional-argument
+    "FBT002",    # boolean-default-value
+    "PLR0913",   # too-many-arguments
+    "D104",      # missing-docstring-in-package
+    "D205",      # one-blank-line-required-after-docstring-summary
+    "TD003",     # missing-todo-author
+    "FIX002",    # missing-fixme-author
+    "COM812",    # missing-trailing-comma
+]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"

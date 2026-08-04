@@ -1,0 +1,13 @@
+repos:
+  - repo: local
+    hooks:
+      - id: linting
+        name: Review Linting
+        entry: just lint
+        language: system
+        pass_filenames: false
+        always_run: true
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.2
+    hooks:
+      - id: gitleaks

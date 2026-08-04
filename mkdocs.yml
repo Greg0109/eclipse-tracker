@@ -1,0 +1,120 @@
+site_name: "Eclipse Tracker"
+site_url: "https://greg0109/eclipse_tracker"
+site_dir: public
+repo_name: "Eclipse Tracker"
+repo_url: "https://github.com/greg0109/eclipse_tracker"
+site_description: "Documentation for Eclipse Tracker"
+site_author: "greg0109"
+docs_dir: docs
+copyright: Copyright &copy; 2024 greg0109
+theme:
+  name: material
+  custom_dir: docs/theme
+  language: en
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: blue
+  font:
+    text: Roboto
+    code: Roboto Mono
+  logo: assets/images/logo.png
+  favicon: assets/images/favicon.png
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tracking
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - search.share
+extra:
+  url_prefix: !ENV MM_DOCS_URL_PREFIX
+  generator: false
+extra_css:
+  - assets/stylesheets/extra.css
+extra_javascript:
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+plugins:
+  - awesome-pages
+  - search
+  - mermaid2:
+      arguments:
+        theme: |
+          ^(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'
+  - site-urls
+  - mkdocstrings:
+      # Options awesome from fastapi docs
+      # Full reference: https://mkdocstrings.github.io/python/usage/configuration/general
+      enabled: !ENV [ENABLE_MKDOCSTRINGS, true]
+      default_handler: python
+      handlers:
+        python:
+          options:
+            extensions:
+            - griffe_typingdoc
+            show_source: false
+            show_root_heading: true
+            show_if_no_docstring: true
+            preload_modules: [httpx, starlette]
+            inherited_members: true
+            members_order: source
+            separate_signature: true
+            unwrap_annotated: true
+            filters: ["!^_"]
+            merge_init_into_class: true
+            docstring_section_style: spacy
+            signature_crossrefs: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+  - build_plantuml:
+      render: 'server'
+      server: 'http://www.plantuml.com/plantuml'
+      output_format: 'png'
+      diagram_root: 'docs/diagrams'
+      output_folder: 'build'
+      input_folder: 'src'
+  - gen-files:
+      scripts:
+        - scripts/gen_code_reference.py
+  - render_swagger
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid_custom
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.snippets:
+      base_path: .
+  - pymdownx.tabbed
+  - pymdownx.caret
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.smartsymbols
+  - pymdownx.critic
+  - footnotes
+  - toc:
+      permalink: true
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.arithmatex:
+      generic: true
+  - meta
+use_directory_urls: false

@@ -1,0 +1,190 @@
+image: astral/uv:python3.14-trixie
+
+variables:
+  GIT_LFS_SKIP_SMUDGE: "0"
+  SAST_APP_NAME: eclipse_tracker
+  SAST_LIBRARY_PROJECT: false
+  SCA_APP_NAME: eclipse_tracker
+
+.configure_docker: &configure_docker |-
+  auth_gitlab=`echo -n "$CI_REGISTRY_USER:$CI_REGISTRY_PASSWORD" | base64`
+  mkdir -p ~/.docker
+  echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$auth_gitlab\"}}}" > ~/.docker/config.json
+
+default:
+  cache: &global_cache
+    key:
+      files:
+        - uv.lock
+    paths:
+      - .cache
+      - .venv
+    policy: pull
+
+.env-job:
+  needs:
+  - job: install-dependencies
+    optional: true
+  before_script:
+    - just env-sync
+  variables:
+    UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+
+.env-docker-job:
+  before_script:
+    - *configure_docker
+  services:
+    - docker:27.0.3-dind
+
+stages:
+  - prepare
+  - test
+  - quality
+  - docs
+  - release
+
+install-dependencies:
+  stage: prepare
+  extends: .env-job
+  needs: []
+  cache:
+    <<: *global_cache
+    policy: pull-push
+  script:
+    - just env-sync
+  rules:
+    - changes:
+      - uv.lock
+      - pyproject.toml
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      when: always
+
+test-small:
+  stage: test
+  extends: .env-job
+  script:
+    - just test-s
+  artifacts:
+    paths:
+    - docs/_build/test-reports
+    reports:
+      junit: docs/_build/test-reports/small-test/**/junit.xml
+
+test-medium:
+  stage: test
+  extends: .env-job
+  script:
+    - just test-m
+  artifacts:
+    paths:
+     - docs/_build/test-reports
+    reports:
+      junit: docs/_build/test-reports/medium-test/**/junit.xml
+
+coverage:
+  stage: quality
+  extends: .env-job
+  script:
+    - just coverage
+  coverage: "/^TOTAL.*\\s(\\d*)/"
+  artifacts:
+    paths:
+      - docs/_build/test-reports
+      - docs/_build/coverage
+    expire_in: 1 week
+    reports:
+      junit:
+        - docs/_build/test-reports/small-test/**/junit.xml
+        - docs/_build/test-reports/medium-test/**/junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: docs/_build/coverage/total/coverage.xml
+  rules:
+    - when: manual
+      allow_failure: true
+
+lint:
+  stage: quality
+  extends: .env-job
+  script:
+    - just lint
+
+security:
+  stage: quality
+  extends: .env-job
+  script:
+    - just security
+  artifacts:
+    paths:
+      - docs/_build/security
+    expire_in: 1 month
+    when: always
+
+check-template-update:
+  stage: quality
+  extends: .env-job
+  script:
+    - just check-template-update
+  allow_failure: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+docs:
+  stage: docs
+  extends: .env-job
+  script:
+    - just docs
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 month
+  rules:
+    - if: '$CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"'
+      when: on_success
+
+pages:
+  stage: docs
+  extends: .env-job
+  script:
+    - just docs
+  artifacts:
+    paths:
+    - public
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH'
+      when: on_success
+
+release-docker:
+  stage: release
+  needs:
+    - "test-small"
+    - "test-medium"
+    - "security"
+  image:
+    name: moby/buildkit:v0.12.5
+    entrypoint: ["sh", "-c"]
+  variables:
+    CACHE_REF: $CI_REGISTRY_IMAGE:cache
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v.*$/
+      variables:
+        GITLAB_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+        VERSION: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+      variables:
+        GITLAB_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+        VERSION: $CI_COMMIT_SHA
+  before_script:
+    - *configure_docker
+  script:
+    - buildctl-daemonless.sh build
+      --frontend=dockerfile.v0
+      --progress=plain
+      --local context=.
+      --local dockerfile=./docker
+      --opt build-arg:VERSION=$VERSION
+      --opt build-arg:REVISION=$CI_COMMIT_SHA
+      --opt build-arg:BUILD_DATE=`date -Iseconds`
+      --output type=image,"name=$GITLAB_IMAGE",push=true
+      --import-cache type=registry,ref=$CACHE_REF
+      --export-cache=type=registry,ref=$CACHE_REF,mode=max

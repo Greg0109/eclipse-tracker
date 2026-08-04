@@ -1,0 +1,28 @@
+default:
+  service:
+    app_name: Eclipse Tracker development
+    activity_id_http_header: X-Request-Id
+    tenant_header: ""
+    secret: # define secrets as env var always
+  
+  logging:
+    log_level: DEBUG
+    log_format: console-simple
+    log_handler: stdout
+
+test: &test
+  service.app_name: Eclipse Tracker test
+  logging:
+    log_level: INFO
+    log_format: console-simple
+    log_handler: stdout
+
+docker-dev:
+  <<: *test
+
+prod:
+  service.app_name: Eclipse Tracker
+  logging:
+    log_level: INFO
+    log_format: json
+    log_handler: stdout
