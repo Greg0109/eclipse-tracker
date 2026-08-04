@@ -92,7 +92,7 @@ function App() {
       />
 
       <div className="pointer-events-none absolute inset-0 z-10 flex justify-between p-4">
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto max-h-full overflow-y-auto">
           <Controls
             lat={lat}
             lon={lon}
@@ -105,7 +105,9 @@ function App() {
           />
         </div>
 
-        <div className="pointer-events-auto flex flex-col items-end gap-4">
+        {/* mr-12 keeps this column clear of MapLibre's zoom/compass control, which the map renders
+            in its own top-right corner underneath these panels. */}
+        <div className="pointer-events-auto mr-12 flex max-h-full flex-col items-end gap-4 overflow-y-auto">
           <LocationPanel candidate={selectedCandidate} />
           <DayPlanner candidate={selectedCandidate} eclipseId={eclipse?.id ?? null} />
         </div>
