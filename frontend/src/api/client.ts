@@ -7,20 +7,71 @@ import type {
   RecommendationResponse,
 } from "../types/api";
 
-// `||`, not `??`: an unset build variable arrives as an empty string, not undefined (CI passes
-// `VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}`, which expands to ""). With `??` that empty
-// string won, so every call went to the page's own origin - on GitHub Pages that meant
-// https://<user>.github.io/api/... answering 404 and 405 instead of the API.
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || "http://localhost:8080";
+export const LOCAL_API_BASE_URL = "http://localhost:8080";
+const STORAGE_KEY = "eclipse-tracker.api-base-url";
+
+// `?.trim() ?? ""`, never a bare `??` fallback: an unset build variable arrives as an empty string,
+// not undefined (CI passes `VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}`, which expands to "").
+const BUILD_TIME_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() ?? "";
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
+function storedBaseUrl(): string {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY)?.trim() ?? "";
+  } catch {
+    return ""; // private-mode / blocked storage - just behave as if nothing was saved
+  }
+}
+
+/**
+ * Where the API lives, or "" when this build has no backend to talk to.
+ *
+ * A page served from a *remote* host must never default to http://localhost:8080, because that is
+ * the visitor's own machine, not the developer's. It can only ever work for whoever happens to be
+ * running the backend locally, browsers block the mixed http/https request, and Firefox now warns
+ * about it outright ("Local Network Access detected"). So loopback is only assumed when the page
+ * itself is served from loopback; anywhere else it must be opted into explicitly.
+ */
+export function getApiBaseUrl(): string {
+  if (BUILD_TIME_BASE_URL) return BUILD_TIME_BASE_URL;
+  const stored = storedBaseUrl();
+  if (stored) return stored;
+  return isLoopbackHost(window.location.hostname) ? LOCAL_API_BASE_URL : "";
+}
+
+/** Opt this browser into a specific backend (persisted); pass "" to forget it. */
+export function setApiBaseUrl(url: string): void {
+  try {
+    const trimmed = url.trim();
+    if (trimmed) window.localStorage.setItem(STORAGE_KEY, trimmed);
+    else window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Nothing to do - the caller still gets the in-memory behaviour for this page load.
+  }
+}
+
+/** Raised instead of firing a request that has nowhere to go. */
+export class ApiNotConfiguredError extends Error {
+  constructor() {
+    super("No Eclipse Tracker backend is configured for this site.");
+    this.name = "ApiNotConfiguredError";
+  }
+}
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) throw new ApiNotConfiguredError();
+
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, init);
+    response = await fetch(`${baseUrl}${path}`, init);
   } catch {
     // fetch() rejects with a bare "Failed to fetch" for DNS/refused/CORS/mixed-content failures,
     // which tells the user nothing about which backend was even being called.
-    throw new Error(`Could not reach the Eclipse Tracker API at ${API_BASE_URL}. Is the backend running?`);
+    throw new Error(`Could not reach the Eclipse Tracker API at ${baseUrl}. Is the backend running?`);
   }
   if (!response.ok) {
     throw new Error(`${init?.method ?? "GET"} ${path} failed: ${response.status} ${response.statusText}`);

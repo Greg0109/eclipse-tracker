@@ -76,7 +76,26 @@ cp frontend/.env.example frontend/.env
 ```
 
 CORS on the backend is preconfigured for `localhost:5173` / `127.0.0.1:5173` (`config/settings.yml` →
-`cors.allow_origins`) — if you change the frontend's dev port, update that too.
+`cors.allow_origins`) — if you change the frontend's dev port, update that too. Note that
+`uvicorn --reload` only watches `.py` files, so editing `settings.yml` needs a server restart.
+
+### Hosted builds (GitHub Pages)
+
+The frontend is deployed to <https://greg0109.github.io/eclipse-tracker/> by
+`.github/workflows/pages.yml`. GitHub Pages serves static files only, so **that build has no backend
+of its own**:
+
+- the map and the totality path still render — the eclipse dataset is bundled into the page;
+- ranking viewing spots and building a day plan need the API.
+
+`http://localhost:8080` is deliberately *not* assumed when the page is served from a remote host: that
+address is the visitor's machine, not yours, so it can only ever work for whoever is running the
+backend locally, and browsers increasingly block such requests (Firefox reports "Local Network Access
+detected"). The page says so and offers a button to opt in when you *are* running one locally.
+
+To make a hosted build fully functional, deploy the backend somewhere reachable over HTTPS, add its
+origin to `cors.allow_origins`, and set a `VITE_API_BASE_URL` repository variable — the workflow
+passes it through at build time, no code change needed.
 
 ## API reference
 

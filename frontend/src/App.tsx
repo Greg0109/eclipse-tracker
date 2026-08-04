@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { getNextEclipse, getRecommendations, searchAddress } from "./api/client";
+import {
+  ApiNotConfiguredError,
+  LOCAL_API_BASE_URL,
+  getApiBaseUrl,
+  getRecommendations,
+  getNextEclipse,
+  searchAddress,
+  setApiBaseUrl,
+} from "./api/client";
 import { Controls } from "./components/Controls";
 import { DayPlanner } from "./components/DayPlanner";
 import { LocationPanel } from "./components/LocationPanel";
@@ -22,6 +30,13 @@ function App() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [resolvedPlace, setResolvedPlace] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [apiBaseUrl, setApiBaseUrlState] = useState(getApiBaseUrl);
+
+  const useLocalBackend = useCallback(() => {
+    setApiBaseUrl(LOCAL_API_BASE_URL);
+    setApiBaseUrlState(LOCAL_API_BASE_URL);
+    setError(null);
+  }, []);
 
   useEffect(() => {
     getNextEclipse()
@@ -67,7 +82,10 @@ function App() {
         setSelectedCandidate(response.candidates[0] ?? null);
         setHasSearched(true);
       } catch (err) {
-        setError((err as Error).message);
+        // A missing backend is a normal state for the static build, not an error to shout about -
+        // the dedicated notice below explains it and offers the local-backend opt-in.
+        if (!(err instanceof ApiNotConfiguredError)) setError((err as Error).message);
+        setHasSearched(true);
       } finally {
         setLoading(false);
       }
@@ -114,7 +132,24 @@ function App() {
       </div>
 
       <div className="absolute bottom-4 left-4 z-10 max-w-sm space-y-2">
-        {!loading && !hasSearched && !error && (
+        {!apiBaseUrl && (
+          <div className="glass-panel space-y-2 rounded-2xl px-4 py-3 text-xs text-astro-muted">
+            <p className="text-astro-text">Showing the eclipse path only - no backend is connected.</p>
+            <p>
+              The map and totality path come from a dataset bundled with this page, but ranking viewing spots
+              needs the Eclipse Tracker API. Deploy it and rebuild with <code>VITE_API_BASE_URL</code> set, or
+              connect to one you are running locally:
+            </p>
+            <button
+              type="button"
+              onClick={useLocalBackend}
+              className="rounded-lg border border-astro-accent/50 bg-astro-accent/20 px-3 py-1.5 text-astro-text transition-colors hover:bg-astro-accent/30"
+            >
+              Connect to {LOCAL_API_BASE_URL}
+            </button>
+          </div>
+        )}
+        {apiBaseUrl && !loading && !hasSearched && !error && (
           <div className="glass-panel rounded-full px-4 py-2 text-xs text-astro-muted">
             Set a location, then press Search to find viewing spots.
           </div>
@@ -124,12 +159,12 @@ function App() {
             Searching... this can take a while - it queries the public OpenStreetMap API.
           </div>
         )}
-        {hasSearched && !loading && candidates.length === 0 && !error && warnings.length === 0 && (
+        {apiBaseUrl && hasSearched && !loading && candidates.length === 0 && !error && warnings.length === 0 && (
           <div className="glass-panel rounded-full px-4 py-2 text-xs text-astro-muted">
             No spots inside the totality path within {rangeKm} km. Try a larger radius.
           </div>
         )}
-          {error && <div className="glass-panel rounded-full px-4 py-2 text-xs text-amber-300">{error}</div>}
+        {error && <div className="glass-panel rounded-2xl px-4 py-2 text-xs text-amber-300">{error}</div>}
         {warnings.map((warning) => (
           <div key={warning} className="glass-panel rounded-2xl px-4 py-2 text-xs text-amber-300">
             {warning}

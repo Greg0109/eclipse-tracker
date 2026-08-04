@@ -34,7 +34,8 @@ export function DayPlanner({ candidate, eclipseId }: DayPlannerProps) {
         if (!cancelled) setItinerary(response);
       })
       .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
+        // No backend is an expected state for the static build; App already explains it once.
+        if (!cancelled && err.name !== "ApiNotConfiguredError") setError(err.message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
