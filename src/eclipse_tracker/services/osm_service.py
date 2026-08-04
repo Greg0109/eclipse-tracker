@@ -74,15 +74,18 @@ class OsmService:
         *,
         max_concurrent_requests: int = 2,
         batch_size: int = 15,
+        hedge_delay_s: float = 10.0,
     ) -> None:
         """Configure the Overpass endpoint(s), request timeout, result-cache TTL and request budget.
 
-        `overpass_urls` is tried in order on each query: public Overpass mirrors are individually
-        unreliable (rate limits, outages, and in at least one observed case a mirror resetting the
-        TLS handshake for non-browser clients while curl succeeds against it) so a single hardcoded
-        URL is a single point of failure for the whole recommendations feature.
+        `overpass_urls` is raced with a staggered start on each query: public Overpass mirrors are
+        individually unreliable (rate limits, outages, and in at least one observed case a mirror
+        resetting the TLS handshake for non-browser clients while curl succeeds against it) so a
+        single hardcoded URL is a single point of failure for the whole recommendations feature.
+        List them fastest-when-healthy first; `hedge_delay_s` is how long each gets before the next
+        is also started.
 
-        `max_concurrent_requests` caps in-flight Overpass requests; public instances hand out only a
+        `max_concurrent_requests` caps in-flight Overpass queries; public instances hand out only a
         couple of slots per client and answer the rest with 429 or an HTML error page.
         `batch_size` is how many point-radius lookups get folded into one batched query.
         """
@@ -93,16 +96,14 @@ class OsmService:
         self._user_agent = user_agent
         self._timeout_s = timeout_s
         self._batch_size = batch_size
+        self._hedge_delay_s = hedge_delay_s
         self._semaphore = asyncio.Semaphore(max_concurrent_requests)
         self._cache: TTLCache[list[dict]] = TTLCache(cache_ttl_s)
         self._count_cache: TTLCache[int] = TTLCache(cache_ttl_s)
 
     async def _post(self, url: str, query: str) -> list[dict]:
         """POST `query` to one mirror and return its elements, or raise."""
-        async with (
-            self._semaphore,
-            httpx.AsyncClient(timeout=self._timeout_s, headers={"User-Agent": self._user_agent}) as client,
-        ):
+        async with httpx.AsyncClient(timeout=self._timeout_s, headers={"User-Agent": self._user_agent}) as client:
             response = await client.post(url, data={"data": query})
             response.raise_for_status()
             payload = response.json()
@@ -110,22 +111,48 @@ class OsmService:
                 raise OverpassQueryError(payload["remark"])
             return payload["elements"]
 
-    async def _execute(self, query: str) -> list[dict]:
-        """POST `query` to the first mirror that answers, with retries. Not cached."""
+    async def _race_mirrors(self, query: str) -> list[dict]:
+        """Send `query` to the mirrors with a staggered start and take the first success.
 
-        async def fetch() -> list[dict]:
-            last_error: Exception = OverpassQueryError("no overpass_urls configured")
-            for url in self._overpass_urls:
-                try:
-                    return await self._post(url, query)
-                except (httpx.HTTPError, OverpassQueryError, ValueError) as exc:
+        Trying mirrors strictly in series means one slow instance costs its full timeout before the
+        next is even attempted, which is how a single query ends up taking minutes. Instead each
+        mirror gets `hedge_delay_s` to answer before the next one is also started; whichever replies
+        first wins and the rest are cancelled. A mirror that fails fast (unreachable, rate-limited)
+        advances the stagger immediately rather than after the delay.
+        """
+        pending: set[asyncio.Task[list[dict]]] = set()
+        remaining = list(self._overpass_urls)
+        last_error: Exception = OverpassQueryError("no overpass_urls configured")
+
+        try:
+            while True:
+                if remaining:
+                    pending.add(asyncio.create_task(self._post(remaining.pop(0), query)))
+                if not pending:
+                    raise last_error
+
+                done, pending = await asyncio.wait(
+                    pending,
+                    timeout=self._hedge_delay_s if remaining else None,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in done:
+                    error = task.exception()
+                    if error is None:
+                        return task.result()
                     # ValueError also covers a mirror answering 200 with an HTML rate-limit page,
                     # which fails JSON decoding rather than raising an httpx error.
-                    last_error = exc
-                    continue
-            raise last_error
+                    if not isinstance(error, httpx.HTTPError | OverpassQueryError | ValueError):
+                        raise error
+                    last_error = error
+        finally:
+            for task in pending:
+                task.cancel()
 
-        return await with_retries(fetch)
+    async def _execute(self, query: str) -> list[dict]:
+        """Run `query` against the mirrors, with retries. Not cached."""
+        async with self._semaphore:
+            return await with_retries(lambda: self._race_mirrors(query))
 
     async def _run_query(self, query: str, cache_key: str) -> list[dict]:
         return await self._cache.get_or_set(cache_key, lambda: self._execute(query))

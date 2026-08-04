@@ -20,6 +20,7 @@ def get_osm_service() -> OsmService:
         cache_ttl_s=cfg.cache_ttl_s,
         max_concurrent_requests=cfg.max_concurrent_overpass_requests,
         batch_size=cfg.overpass_batch_size,
+        hedge_delay_s=cfg.overpass_hedge_delay_s,
     )
 
 

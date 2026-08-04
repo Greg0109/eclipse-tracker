@@ -34,6 +34,8 @@ default:
     max_concurrent_overpass_requests: 2
     # Point-radius lookups folded into a single batched "out count;" query.
     overpass_batch_size: 15
+    # How long a mirror gets to answer before the next one is raced alongside it.
+    overpass_hedge_delay_s: 10.0
 
   scoring:
     weights:

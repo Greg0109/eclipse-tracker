@@ -20,6 +20,9 @@ export function DayPlanner({ candidate, eclipseId }: DayPlannerProps) {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    // Drop the previous candidate's plan immediately - itinerary lookups hit a slow public API,
+    // and showing a stale timeline next to a new selection reads as "it didn't update".
+    setItinerary(null);
     getItinerary({
       candidate_id: candidate.id,
       candidate_name: candidate.name,

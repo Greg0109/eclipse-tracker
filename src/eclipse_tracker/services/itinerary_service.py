@@ -3,24 +3,31 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from eclipse_tracker.models import Eclipse, ItineraryResponse, ItineraryStop
 from eclipse_tracker.services import eclipse_service
 from eclipse_tracker.services.osm_service import FOOD_TAGS, SIGHTSEEING_TAGS, OsmService
 
 
+if TYPE_CHECKING:
+    from collections.abc import Collection
+    from datetime import datetime
+
+
 FOOD_AMENITIES = frozenset({"restaurant", "cafe", "bar"})
 
 ARRIVAL_BUFFER = timedelta(hours=2)
 MORNING_STOP_OFFSET = timedelta(hours=4)
-EVENING_STOP_OFFSET = timedelta(hours=1, minutes=30)
+LUNCH_OFFSET = timedelta(hours=2, minutes=30)
+DINNER_OFFSET = timedelta(hours=1)
 POI_SEARCH_RADIUS_M = 6000
 
 
-def _pick(elements: list[dict], exclude_name: str) -> dict | None:
+def _pick(elements: list[dict], exclude_name: str, exclude_ids: Collection[int] = ()) -> dict | None:
     for element in elements:
         name = element.get("tags", {}).get("name")
-        if name and name != exclude_name:
+        if name and name != exclude_name and element.get("id") not in exclude_ids:
             return element
     return None
 
@@ -58,40 +65,55 @@ async def build_itinerary(
     sightseeing = [poi for poi in pois if poi.get("tags", {}).get("amenity") not in FOOD_AMENITIES]
 
     eclipse_time = circumstances.time_utc
-    stops: list[ItineraryStop] = [
+    # Each stop is paired with the time it happens at so the timeline can be emitted in
+    # chronological order - the stops are *built* in narrative order (arrival, then the optional
+    # ones, then totality), which is not the order a reader should see them in.
+    planned: list[tuple[datetime, ItineraryStop]] = []
+
+    def plan(when: datetime, stop: ItineraryStop) -> None:
+        planned.append((when, stop))
+
+    arrival_time = eclipse_time - ARRIVAL_BUFFER
+    plan(
+        arrival_time,
         ItineraryStop(
             kind="arrival",
             name=candidate_name,
             lat=lat,
             lon=lon,
-            start_local_hint=(eclipse_time - ARRIVAL_BUFFER).strftime("%H:%M UTC"),
+            start_local_hint=arrival_time.strftime("%H:%M UTC"),
             note="Arrive early to secure parking/space - popular viewing spots fill up before totality.",
-        )
-    ]
+        ),
+    )
 
     morning_sightseeing = _pick(sightseeing, candidate_name)
     if morning_sightseeing:
-        stops.append(
+        sightseeing_time = eclipse_time - MORNING_STOP_OFFSET
+        plan(
+            sightseeing_time,
             _stop_from_element(
                 morning_sightseeing,
                 "sightseeing",
-                (eclipse_time - MORNING_STOP_OFFSET).strftime("%H:%M UTC"),
+                sightseeing_time.strftime("%H:%M UTC"),
                 "While you wait: nearby sightseeing before heading to your viewing spot.",
-            )
+            ),
         )
 
     lunch = _pick(food, candidate_name)
     if lunch:
-        stops.append(
+        lunch_time = eclipse_time - LUNCH_OFFSET
+        plan(
+            lunch_time,
             _stop_from_element(
                 lunch,
                 "food",
-                (eclipse_time - EVENING_STOP_OFFSET - timedelta(hours=1)).strftime("%H:%M UTC"),
+                lunch_time.strftime("%H:%M UTC"),
                 "Grab a meal before settling in for the eclipse.",
-            )
+            ),
         )
 
-    stops.append(
+    plan(
+        eclipse_time,
         ItineraryStop(
             kind="eclipse",
             name=candidate_name,
@@ -102,18 +124,22 @@ async def build_itinerary(
                 f"Totality: ~{circumstances.totality_duration_s:.0f}s, "
                 f"sun altitude {circumstances.sun_altitude_deg:.0f} deg."
             ),
-        )
+        ),
     )
 
-    dinner = _pick(food, candidate_name)
-    if dinner and (not lunch or dinner.get("id") != lunch.get("id")):
-        stops.append(
+    # A different venue than lunch, otherwise the day reads as eating at the same place twice.
+    dinner = _pick(food, candidate_name, exclude_ids={lunch["id"]} if lunch else frozenset())
+    if dinner:
+        dinner_time = eclipse_time + DINNER_OFFSET
+        plan(
+            dinner_time,
             _stop_from_element(
                 dinner,
                 "food",
-                (eclipse_time + timedelta(hours=1)).strftime("%H:%M UTC"),
+                dinner_time.strftime("%H:%M UTC"),
                 "Celebrate afterwards with a bite nearby.",
-            )
+            ),
         )
 
-    return ItineraryResponse(candidate_id=candidate_id, eclipse_id=eclipse_id, stops=stops)
+    planned.sort(key=lambda item: item[0])
+    return ItineraryResponse(candidate_id=candidate_id, eclipse_id=eclipse_id, stops=[stop for _, stop in planned])

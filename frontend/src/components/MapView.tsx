@@ -93,21 +93,32 @@ export function MapView({ eclipse, candidates, selectedCandidateId, onSelectCand
 
     markersRef.current = candidates.map((candidate) => {
       const isSelected = candidate.id === selectedCandidateId;
-      const el = document.createElement("div");
       const size = 10 + (candidate.score.composite / 100) * 16;
+
+      // Two elements on purpose: MapLibre positions the marker's root element by writing to its
+      // `transform`, so any transform of ours (the hover scale) would overwrite the translate and
+      // fling the marker to the map origin. The hover effect therefore lives on an inner element.
+      const el = document.createElement("div");
       el.style.width = `${size}px`;
       el.style.height = `${size}px`;
-      el.style.borderRadius = "50%";
-      el.style.cursor = "pointer";
-      el.style.background = scoreColor(candidate.score.composite);
-      el.style.border = isSelected ? "2px solid #fff" : "1px solid rgba(255,255,255,0.4)";
-      el.style.boxShadow = isSelected ? "0 0 14px rgba(255,255,255,0.85)" : "0 0 6px rgba(0,0,0,0.5)";
-      el.style.transition = "transform 0.15s ease";
-      el.addEventListener("mouseenter", () => {
-        el.style.transform = "scale(1.2)";
+
+      const dot = document.createElement("div");
+      dot.style.width = "100%";
+      dot.style.height = "100%";
+      dot.style.borderRadius = "50%";
+      dot.style.cursor = "pointer";
+      dot.style.background = scoreColor(candidate.score.composite);
+      dot.style.border = isSelected ? "2px solid #fff" : "1px solid rgba(255,255,255,0.4)";
+      dot.style.boxShadow = isSelected ? "0 0 14px rgba(255,255,255,0.85)" : "0 0 6px rgba(0,0,0,0.5)";
+      dot.style.transition = "transform 0.15s ease";
+      dot.style.boxSizing = "border-box";
+      el.appendChild(dot);
+
+      dot.addEventListener("mouseenter", () => {
+        dot.style.transform = "scale(1.35)";
       });
-      el.addEventListener("mouseleave", () => {
-        el.style.transform = "scale(1)";
+      dot.addEventListener("mouseleave", () => {
+        dot.style.transform = "scale(1)";
       });
       el.addEventListener("click", () => onSelectCandidate(candidate));
 

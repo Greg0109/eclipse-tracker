@@ -62,10 +62,12 @@ def test_itinerary_returns_arrival_sightseeing_and_food_stops(client):
     assert body["candidate_id"] == "cand-1"
     assert body["eclipse_id"] == "2026-08-12"
     kinds = [stop["kind"] for stop in body["stops"]]
-    assert kinds[0] == "arrival"
-    assert "sightseeing" in kinds
-    assert "food" in kinds
-    assert "eclipse" in kinds
+    assert set(kinds) == {"arrival", "sightseeing", "food", "eclipse"}
+    # Stops are emitted chronologically, not in the order the service happens to build them:
+    # sightseeing (T-4h), food (T-2h30), arrival (T-2h), totality (T).
+    assert kinds == ["sightseeing", "food", "arrival", "eclipse"]
+    hints = [stop["start_local_hint"] for stop in body["stops"]]
+    assert hints == sorted(hints)
 
     sightseeing_stop = next(stop for stop in body["stops"] if stop["kind"] == "sightseeing")
     assert sightseeing_stop["name"] == "Museo del Eclipse"
