@@ -1,43 +1,34 @@
-import { useCallback, useState } from "react";
-import { searchAddress } from "../api/client";
+import { useState } from "react";
 import { useGeolocation } from "../hooks/useGeolocation";
-import type { NominatimResult } from "../types/api";
 
 interface ControlsProps {
   lat: number;
   lon: number;
   rangeKm: number;
+  searching: boolean;
+  resolvedPlace: string | null;
   onRangeChange: (rangeKm: number) => void;
   onLocationChange: (lat: number, lon: number) => void;
+  onSearch: (query: string) => void;
 }
 
-export function Controls({ lat, lon, rangeKm, onRangeChange, onLocationChange }: ControlsProps) {
+export function Controls({
+  lat,
+  lon,
+  rangeKm,
+  searching,
+  resolvedPlace,
+  onRangeChange,
+  onLocationChange,
+  onSearch,
+}: ControlsProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<NominatimResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
 
   const {
     loading: locating,
     error: geoError,
     locate,
   } = useGeolocation((foundLat, foundLon) => onLocationChange(foundLat, foundLon));
-
-  // Explicitly triggered, never on keystroke: Nominatim's usage policy caps clients at ~1 req/s,
-  // and a search-as-you-type box burns that budget on prefixes nobody asked to look up.
-  const runSearch = useCallback(() => {
-    const trimmed = query.trim();
-    if (!trimmed || searching) return;
-    setSearching(true);
-    setSearchError(null);
-    searchAddress(trimmed)
-      .then((found) => {
-        setResults(found);
-        if (found.length === 0) setSearchError(`No places found for "${trimmed}".`);
-      })
-      .catch((err: Error) => setSearchError(err.message))
-      .finally(() => setSearching(false));
-  }, [query, searching]);
 
   return (
     <div className="glass-panel w-80 space-y-4 rounded-2xl p-4">
@@ -48,57 +39,27 @@ export function Controls({ lat, lon, rangeKm, onRangeChange, onLocationChange }:
 
       <div className="space-y-1">
         <label className="text-xs text-astro-muted" htmlFor="address-search">
-          Search a place
+          Place to search around
         </label>
-        <div className="flex gap-2">
-          <input
-            id="address-search"
-            className="min-w-0 flex-1 rounded-lg border border-astro-border bg-white/5 px-3 py-2 text-sm text-astro-text placeholder:text-astro-muted focus:ring-1 focus:ring-astro-accent focus:outline-none"
-            type="text"
-            placeholder="City, address..."
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") runSearch();
-            }}
-          />
-          <button
-            type="button"
-            onClick={runSearch}
-            disabled={searching || query.trim().length === 0}
-            className="shrink-0 rounded-lg border border-astro-accent/50 bg-astro-accent/20 px-3 py-2 text-sm text-astro-text transition-colors hover:bg-astro-accent/30 disabled:opacity-40"
-          >
-            {searching ? "..." : "Search"}
-          </button>
-        </div>
-        {searchError && <p className="text-xs text-amber-300">{searchError}</p>}
-        {results.length > 0 && (
-          <ul className="divide-y divide-white/5 overflow-hidden rounded-lg border border-astro-border">
-            {results.map((result) => (
-              <li key={`${result.lat},${result.lon}`}>
-                <button
-                  type="button"
-                  className="w-full px-3 py-2 text-left text-xs hover:bg-white/10"
-                  onClick={() => {
-                    onLocationChange(Number(result.lat), Number(result.lon));
-                    setQuery(result.display_name);
-                    setResults([]);
-                    setSearchError(null);
-                  }}
-                >
-                  {result.display_name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <input
+          id="address-search"
+          className="w-full rounded-lg border border-astro-border bg-white/5 px-3 py-2 text-sm text-astro-text placeholder:text-astro-muted focus:ring-1 focus:ring-astro-accent focus:outline-none"
+          type="text"
+          placeholder="City, address... (or use my location)"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !searching) onSearch(query);
+          }}
+        />
+        {resolvedPlace && <p className="text-[11px] text-astro-muted">Found: {resolvedPlace}</p>}
       </div>
 
       <button
         type="button"
         onClick={locate}
-        disabled={locating}
-        className="w-full rounded-lg border border-astro-accent/50 bg-astro-accent/20 px-3 py-2 text-sm text-astro-text transition-colors hover:bg-astro-accent/30 disabled:opacity-50"
+        disabled={locating || searching}
+        className="w-full rounded-lg border border-astro-border bg-white/5 px-3 py-2 text-sm text-astro-text transition-colors hover:bg-white/10 disabled:opacity-50"
       >
         {locating ? "Locating..." : "Use my location"}
       </button>
@@ -123,6 +84,17 @@ export function Controls({ lat, lon, rangeKm, onRangeChange, onLocationChange }:
       <p className="text-[11px] text-astro-muted">
         Origin: {lat.toFixed(3)}, {lon.toFixed(3)}
       </p>
+
+      {/* The only thing that starts a recommendation run. Typing, moving the slider and picking a
+          location all just stage the query - nothing hits the API until this is pressed. */}
+      <button
+        type="button"
+        onClick={() => onSearch(query)}
+        disabled={searching}
+        className="w-full rounded-lg border border-astro-accent/50 bg-astro-accent/20 px-3 py-2 text-sm font-medium text-astro-text transition-colors hover:bg-astro-accent/30 disabled:opacity-50"
+      >
+        {searching ? "Searching..." : "Search"}
+      </button>
     </div>
   );
 }

@@ -33,6 +33,18 @@ if TYPE_CHECKING:
 # the list.
 MAX_ENRICHED_CANDIDATES = 15
 
+OVERPASS_UNAVAILABLE_WARNING = (
+    "Could not reach the OpenStreetMap Overpass API, so no viewing spots could be searched. "
+    "The public mirrors are often busy - try again in a moment."
+)
+ENRICHMENT_DEGRADED_WARNING = (
+    "OpenStreetMap lookups for crowding and road access failed, so those scores are estimates."
+)
+ELEVATION_DEGRADED_WARNING = (
+    "The elevation service was rate-limiting, so terrain obstruction could not be checked for "
+    "{failed} of {total} spots - those are scored assuming a flat horizon."
+)
+
 
 @dataclass(frozen=True)
 class _Prospect:
@@ -89,9 +101,18 @@ async def _clearance_or_none(terrain: TerrainService, prospect: _Prospect) -> fl
             prospect.circumstances.sun_altitude_deg,
         )
     except httpx.HTTPError as exc:
-        # A flaky public API shouldn't sink the whole request - drop this one candidate.
         logger.warning("elevation_lookup_failed", lat=prospect.lat, lon=prospect.lon, error=str(exc))
         return None
+
+
+def _flat_horizon_clearance(prospect: _Prospect) -> float:
+    """Clearance assuming no terrain at all - the fallback when Open-Elevation won't answer.
+
+    Dropping a candidate on elevation failure used to be silent, and Open-Elevation rate-limits
+    hard enough that *every* lookup in a batch can fail, emptying an otherwise good result set.
+    Terrain is one of five scoring signals; the other four are still meaningful without it.
+    """
+    return prospect.circumstances.sun_altitude_deg
 
 
 def _to_candidate(
@@ -158,20 +179,25 @@ async def recommend(
     eclipse = eclipse_service.get_eclipse(eclipse_id) if eclipse_id else eclipse_service.next_eclipse()
     weights = weights or ScoringWeights()
 
+    warnings: list[str] = []
+
     min_lat, min_lon, max_lat, max_lon = bounding_box(lat, lon, range_km)
     try:
         elements = await osm.find_viewpoints_in_bbox(min_lat, min_lon, max_lat, max_lon)
     except (httpx.HTTPError, OverpassQueryError) as exc:
         # Overpass being unreachable/rate-limited/overloaded shouldn't 500 the whole request -
-        # degrade to no candidates, but log it since this failure mode is otherwise silent to the user.
+        # degrade to no candidates, but say so rather than looking like "nothing here is in totality".
         logger.warning("overpass_viewpoint_query_failed", error=str(exc))
         elements = []
+        warnings.append(OVERPASS_UNAVAILABLE_WARNING)
 
     prospects = _prospects(elements, eclipse=eclipse, origin_lat=lat, origin_lon=lon, range_km=range_km)
     prospects.sort(key=lambda p: _preliminary_rank(p, range_km), reverse=True)
     prospects = prospects[:MAX_ENRICHED_CANDIDATES]
     if not prospects:
-        return RecommendationResponse(eclipse=eclipse, origin=(lat, lon), range_km=range_km, candidates=[])
+        return RecommendationResponse(
+            eclipse=eclipse, origin=(lat, lon), range_km=range_km, candidates=[], warnings=warnings
+        )
 
     points = [(p.lat, p.lon) for p in prospects]
     try:
@@ -185,8 +211,12 @@ async def recommend(
         logger.warning("overpass_candidate_enrichment_failed", error=str(exc))
         building_counts = [0] * len(prospects)
         access = [(True, "Accessibility unknown - Overpass lookup unavailable")] * len(prospects)
+        warnings.append(ENRICHMENT_DEGRADED_WARNING)
 
     clearances = await asyncio.gather(*(_clearance_or_none(terrain, p) for p in prospects))
+    failed_clearances = sum(1 for clearance in clearances if clearance is None)
+    if failed_clearances:
+        warnings.append(ELEVATION_DEGRADED_WARNING.format(failed=failed_clearances, total=len(prospects)))
 
     candidates = [
         _to_candidate(
@@ -194,15 +224,16 @@ async def recommend(
             eclipse=eclipse,
             range_km=range_km,
             weights=weights,
-            clearance=clearance,
+            clearance=clearance if clearance is not None else _flat_horizon_clearance(prospect),
             building_count=building_count,
             access=candidate_access,
         )
         for prospect, clearance, building_count, candidate_access in zip(
             prospects, clearances, building_counts, access, strict=True
         )
-        if clearance is not None
     ]
 
     ranked = sorted(candidates, key=lambda c: c.score.composite, reverse=True)
-    return RecommendationResponse(eclipse=eclipse, origin=(lat, lon), range_km=range_km, candidates=ranked[:limit])
+    return RecommendationResponse(
+        eclipse=eclipse, origin=(lat, lon), range_km=range_km, candidates=ranked[:limit], warnings=warnings
+    )

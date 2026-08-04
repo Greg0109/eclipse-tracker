@@ -104,6 +104,10 @@ class RecommendationResponse(BaseModel):
     origin: tuple[float, float]
     range_km: float
     candidates: list[Candidate]
+    # Degraded-result notes for the user. An empty `candidates` list is ambiguous on its own -
+    # it means either "nowhere in range is under totality" or "the upstream OSM API just failed",
+    # and those call for very different reactions.
+    warnings: list[str] = Field(default_factory=list)
 
 
 class ItineraryRequest(BaseModel):

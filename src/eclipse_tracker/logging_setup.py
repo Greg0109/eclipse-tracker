@@ -1,10 +1,8 @@
 """
 Minimal structlog-based logging setup.
 
-The original project scaffold depended on an internal `logging_setup` package that is not
-published anywhere this project can install from. This module provides the same small
-surface (`get_logger`, `LogConfig`, `initialize_multiple_loggers`) backed by structlog,
-so the rest of the app is unaffected.
+Exposes a small surface - `get_logger`, `LogConfig`, `initialize_multiple_loggers` - so the rest
+of the app configures logging in one place and never touches structlog directly.
 """
 
 from __future__ import annotations

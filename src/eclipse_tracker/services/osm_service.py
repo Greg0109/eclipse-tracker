@@ -214,13 +214,21 @@ class OsmService:
         results = await asyncio.gather(*(for_tag(tag) for tag in VIEWPOINT_QUERY_TAGS), return_exceptions=True)
 
         by_id: dict[tuple[str, int], dict] = {}
+        failures: list[BaseException] = []
         for tag, result in zip(VIEWPOINT_QUERY_TAGS, results, strict=True):
             if isinstance(result, BaseException):
                 logger.warning("overpass_viewpoint_tag_failed", tag=tag, error=str(result))
+                failures.append(result)
                 continue
             for element in result:
                 if element.get("tags", {}).get("name"):
                     by_id[(element["type"], element["id"])] = element
+
+        # Partial failure still yields usable results, but if *every* tag query failed then an empty
+        # list would be indistinguishable from "this bbox genuinely has no viewpoints" - raise so the
+        # caller can tell the user the search was unavailable rather than silently showing nothing.
+        if failures and len(failures) == len(VIEWPOINT_QUERY_TAGS):
+            raise failures[0]
 
         return list(by_id.values())[:limit]
 

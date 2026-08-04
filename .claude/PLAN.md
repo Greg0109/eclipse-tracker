@@ -89,11 +89,11 @@ this plan said that file was "written but not run" — that is stale; it runs an
 | `api/{eclipses,recommendations,itinerary}.py` | Routers, wired in `app.py` with CORS from settings |
 | `config/settings.yml` | Added `cors`, `external_apis`, `scoring` sections |
 
-**Pre-existing scaffold bug already fixed**: the template's `logging_setup` logging dependency does not exist on
-PyPI — `import logging_setup` failed before any of this work began. Replaced with `logging_setup.py`, a structlog
-shim exposing the same `get_logger` / `LogConfig` / `initialize_multiple_loggers` surface; both import sites
-now do `from eclipse_tracker import logging_setup`. Added `structlog` + `httpx` to dependencies and
-`respx` to the dev group. Do not reintroduce `logging_setup`.
+**Pre-existing scaffold bug already fixed**: the template depended on an internal logging package that is
+not published on PyPI, so importing it failed before any of this work began. Logging is now
+`logging_setup.py`, backed by structlog, exposing `get_logger` / `LogConfig` /
+`initialize_multiple_loggers`; both import sites do `from eclipse_tracker import logging_setup`. Added
+`structlog` + `httpx` to dependencies and `respx` to the dev group.
 
 ### Tests — done
 

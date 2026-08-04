@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { getNextEclipse, getRecommendations } from "./api/client";
+import { getNextEclipse, getRecommendations, searchAddress } from "./api/client";
 import { Controls } from "./components/Controls";
 import { DayPlanner } from "./components/DayPlanner";
 import { LocationPanel } from "./components/LocationPanel";
@@ -19,6 +19,9 @@ function App() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [resolvedPlace, setResolvedPlace] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
     getNextEclipse()
@@ -26,33 +29,57 @@ function App() {
       .catch((err: Error) => setError(err.message));
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getRecommendations({ lat, lon, range_km: rangeKm, limit: 20 })
-      .then((response) => {
-        if (cancelled) return;
-        setCandidates(response.candidates);
-        setSelectedCandidate((current) => {
-          if (current && response.candidates.some((candidate) => candidate.id === current.id)) return current;
-          return response.candidates[0] ?? null;
-        });
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [lat, lon, rangeKm]);
+  // Nothing here runs on mount, on typing, or on moving the range slider. A recommendation search
+  // costs tens of seconds against public APIs, so it happens only when the user asks for it.
+  const runSearch = useCallback(
+    async (query: string) => {
+      if (loading) return;
+      setLoading(true);
+      setError(null);
+      setWarnings([]);
 
+      let searchLat = lat;
+      let searchLon = lon;
+
+      try {
+        const trimmed = query.trim();
+        if (trimmed) {
+          const places = await searchAddress(trimmed);
+          if (places.length === 0) {
+            setError(`No places found for "${trimmed}".`);
+            return;
+          }
+          searchLat = Number(places[0].lat);
+          searchLon = Number(places[0].lon);
+          setLat(searchLat);
+          setLon(searchLon);
+          setResolvedPlace(places[0].display_name);
+        }
+
+        const response = await getRecommendations({
+          lat: searchLat,
+          lon: searchLon,
+          range_km: rangeKm,
+          limit: 20,
+        });
+        setCandidates(response.candidates);
+        setWarnings(response.warnings ?? []);
+        setSelectedCandidate(response.candidates[0] ?? null);
+        setHasSearched(true);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [lat, lon, rangeKm, loading],
+  );
+
+  // Only moves the origin - the user still has to press Search.
   const handleLocationChange = useCallback((newLat: number, newLon: number) => {
     setLat(newLat);
     setLon(newLon);
+    setResolvedPlace(null);
   }, []);
 
   return (
@@ -66,7 +93,16 @@ function App() {
 
       <div className="pointer-events-none absolute inset-0 z-10 flex justify-between p-4">
         <div className="pointer-events-auto">
-          <Controls lat={lat} lon={lon} rangeKm={rangeKm} onRangeChange={setRangeKm} onLocationChange={handleLocationChange} />
+          <Controls
+            lat={lat}
+            lon={lon}
+            rangeKm={rangeKm}
+            searching={loading}
+            resolvedPlace={resolvedPlace}
+            onRangeChange={setRangeKm}
+            onLocationChange={handleLocationChange}
+            onSearch={runSearch}
+          />
         </div>
 
         <div className="pointer-events-auto flex flex-col items-end gap-4">
@@ -75,16 +111,29 @@ function App() {
         </div>
       </div>
 
-      {(loading || error) && (
-        <div className="absolute bottom-4 left-4 z-10">
-          {loading && (
-            <div className="glass-panel rounded-full px-4 py-2 text-xs text-astro-muted">Loading candidates...</div>
-          )}
-          {error && (
-            <div className="glass-panel mt-2 rounded-full px-4 py-2 text-xs text-amber-300">{error}</div>
-          )}
-        </div>
-      )}
+      <div className="absolute bottom-4 left-4 z-10 max-w-sm space-y-2">
+        {!loading && !hasSearched && !error && (
+          <div className="glass-panel rounded-full px-4 py-2 text-xs text-astro-muted">
+            Set a location, then press Search to find viewing spots.
+          </div>
+        )}
+        {loading && (
+          <div className="glass-panel rounded-full px-4 py-2 text-xs text-astro-muted">
+            Searching... this can take a while - it queries the public OpenStreetMap API.
+          </div>
+        )}
+        {hasSearched && !loading && candidates.length === 0 && !error && warnings.length === 0 && (
+          <div className="glass-panel rounded-full px-4 py-2 text-xs text-astro-muted">
+            No spots inside the totality path within {rangeKm} km. Try a larger radius.
+          </div>
+        )}
+          {error && <div className="glass-panel rounded-full px-4 py-2 text-xs text-amber-300">{error}</div>}
+        {warnings.map((warning) => (
+          <div key={warning} className="glass-panel rounded-2xl px-4 py-2 text-xs text-amber-300">
+            {warning}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

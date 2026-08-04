@@ -3,9 +3,9 @@ Module for Service Configuration and Initialization.
 
 This module is responsible for:
     - Loading the configuration from a specified YAML file
-    - Initializing logging settings using logging_setup
+    - Initializing structlog-based logging settings
 
-Logging is set up using the logging_setup library which is configured to output logs to the console.
+Logging is configured to output to the console via `eclipse_tracker.logging_setup`.
 """
 
 import logging
@@ -42,7 +42,7 @@ logger.info(
 @lru_cache
 def initialize_logging() -> None:
     """
-    Initialize logging_setup settings for logging throughout the application.
+    Initialize logging settings for use throughout the application.
     This function is cached to ensure that logging settings are only initialized once.
     """
     logger.info("logging_initializing")

@@ -73,6 +73,8 @@ export interface RecommendationResponse {
   origin: [number, number];
   range_km: number;
   candidates: Candidate[];
+  /** Degraded-result notes, e.g. the upstream OSM API being unreachable. */
+  warnings: string[];
 }
 
 export interface ItineraryStop {
