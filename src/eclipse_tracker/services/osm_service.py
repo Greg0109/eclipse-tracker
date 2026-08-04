@@ -39,9 +39,11 @@ SIGHTSEEING_TAGS = (
 
 
 class OverpassQueryError(Exception):
-    """Raised when Overpass replies 200 OK but the query itself failed server-side (e.g. its own
+    """
+    Raised when Overpass replies 200 OK but the query itself failed server-side (e.g. its own
     internal `[timeout:N]` budget was exceeded) - it reports this via a `remark` field alongside an
-    empty `elements` list rather than a non-2xx status, so it must be checked explicitly."""
+    empty `elements` list rather than a non-2xx status, so it must be checked explicitly.
+    """
 
 
 class OsmService:
@@ -64,6 +66,11 @@ class OsmService:
         self._cache: TTLCache[list[dict]] = TTLCache(cache_ttl_s)
 
     async def _run_query(self, query: str, cache_key: str) -> list[dict]:
+        def _extract_elements(payload: dict) -> list[dict]:
+            if "remark" in payload:
+                raise OverpassQueryError(payload["remark"])
+            return payload["elements"]
+
         async def fetch() -> list[dict]:
             last_error: Exception = OverpassQueryError("no overpass_urls configured")
             for url in self._overpass_urls:
@@ -73,10 +80,7 @@ class OsmService:
                     ) as client:
                         response = await client.post(url, data={"data": query})
                         response.raise_for_status()
-                        payload = response.json()
-                        if "remark" in payload:
-                            raise OverpassQueryError(payload["remark"])
-                        return payload["elements"]
+                        return _extract_elements(response.json())
                 except (httpx.HTTPError, OverpassQueryError) as exc:
                     last_error = exc
                     continue
